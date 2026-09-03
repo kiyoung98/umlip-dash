@@ -1,0 +1,1132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>uMLIP bench — campaign dashboard</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:#141a2b; --panel2:#1b2336; --line:#26304a;
+    --txt:#e6ecff; --muted:#8a96b4; --accent:#5b8cff;
+    --green:#37d399; --amber:#ffc24b; --red:#ff6b6b; --violet:#a98bff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 80% -10%,#16203a 0%,var(--bg) 55%);
+    color:var(--txt);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,'Noto Sans KR',Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;min-height:100vh}
+  header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    padding:18px 24px;border-bottom:1px solid var(--line);
+    background:rgba(11,15,26,.7);backdrop-filter:blur(8px);position:sticky;top:0;z-index:5}
+  .logo{font-size:20px;font-weight:700;letter-spacing:.3px;display:flex;align-items:center;gap:10px}
+  .logo .dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green)}
+  .tabs{display:flex;gap:6px}
+  .spacer{flex:1}
+  .meta{color:var(--muted);font-size:12px;text-align:right}
+  .btn{cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--txt);
+    padding:7px 13px;border-radius:9px;font-size:12px}
+  .btn:hover{border-color:var(--accent)}
+  .btn.on{border-color:var(--accent);color:var(--accent);font-weight:600}
+  .chips{display:flex;gap:12px;flex-wrap:wrap;padding:18px 24px 4px}
+  .chip{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+    border-radius:14px;padding:13px 17px;min-width:130px;flex:1}
+  .chip .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+  .chip .v{font-size:23px;font-weight:700;margin-top:3px}
+  .chip .v small{font-size:13px;color:var(--muted);font-weight:500}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(420px,100%),1fr));gap:16px;padding:18px 24px 40px}
+  .grid.wide{grid-template-columns:1fr;max-width:1200px;margin:0 auto}
+  .card{background:var(--panel);
+    border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+  .card h2{margin:0;padding:13px 16px;font-size:15px;display:flex;align-items:center;gap:9px;
+    border-bottom:1px solid var(--line);background:var(--panel2)}
+  .card h2 .sdot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 9px var(--green);flex-shrink:0}
+  .card h2 .sdot.busy{background:var(--accent);box-shadow:0 0 9px var(--accent)}
+  .card h2 .host{color:var(--muted);font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card h2 .cnt{margin-left:auto;color:var(--muted);font-size:12px;font-weight:500;flex-shrink:0}
+  .gpu{padding:11px 16px;border-bottom:1px solid var(--line)}
+  .gpu:last-child{border-bottom:none}
+  .gpu .top{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .gpu .job{margin:-3px 0 7px 30px;font-size:11.5px;color:var(--accent,#7aa2f7);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.85}
+  .gpu .idx{font-weight:700;color:var(--accent);font-size:12px;min-width:18px}
+  .gpu .name{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gpu .pill{margin-left:auto;display:flex;gap:6px;align-items:center;flex-shrink:0}
+  .pill span{font-size:11px;color:var(--muted)}
+  .pill b{font-size:11px;padding:2px 7px;border-radius:999px;background:var(--panel2);border:1px solid var(--line)}
+  .bars{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .bar .lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px}
+  .bar .lbl b{color:var(--txt)}
+  .track{height:8px;border-radius:6px;background:#0c1322;overflow:hidden;border:1px solid var(--line)}
+  .fill{height:100%;border-radius:6px;transition:width .5s ease}
+  .empty{color:var(--muted);font-size:11px;font-style:italic;margin-top:6px}
+  .banner{display:none;margin:14px 24px 0;padding:11px 15px;border-radius:11px;
+    background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.4);color:#ffd0d0;font-size:13px}
+  footer{color:var(--muted);font-size:11px;text-align:center;padding:0 0 30px}
+  .disk{padding:11px 16px 13px;border-top:1px solid var(--line);margin-top:auto}
+  .disk .lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px}
+  .disk .lbl b{color:var(--txt);font-variant-numeric:tabular-nums}
+  .dbar{display:flex;height:15px;border-radius:7px;overflow:hidden;background:#0c1322;border:1px solid var(--line)}
+  .dbar .seg{height:100%}
+  /* experiments */
+  .sec{padding:10px 16px 4px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+  /* Every table lives in one of these. A card clips its overflow, so a table
+     wider than the card is invisible rather than reachable -- which is what a
+     phone always gets: 7 training columns do not fit 390 px. */
+  .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  .tw::-webkit-scrollbar{height:6px}
+  .tw::-webkit-scrollbar-thumb{background:#2c3752;border-radius:3px}
+  table{border-collapse:collapse;width:100%}
+  th,td{padding:7px 10px;text-align:left;font-size:12px}
+  thead th{color:var(--muted);font-weight:500;font-size:11px;border-bottom:1px solid var(--line)}
+  tbody td{border-bottom:1px solid rgba(38,48,74,.5)}
+  tbody tr:last-child td{border-bottom:none}
+  td.model{font-family:ui-monospace,Menlo,monospace;font-size:12px;white-space:nowrap}
+  .mcell{min-width:110px}
+  .mcell .mtxt{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;margin-bottom:3px}
+  .mcell .mtxt b{font-variant-numeric:tabular-nums}
+  .mcell .mtxt span{color:var(--muted);font-size:10px;margin-left:6px;white-space:nowrap}
+  .st-done b{color:var(--green)} .st-running b{color:var(--accent)}
+  .st-stale b{color:var(--amber)} .st-todo b{color:#3a4a6a}
+  .rdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 7px var(--accent);margin-right:4px;animation:pulse 1.6s infinite}
+  @keyframes pulse{50%{opacity:.25}}
+  /* a stalled measurement holds a card and writes nothing: amber, and it
+     does not pulse -- the pulse is what says "moving" */
+  .rdot.stl{background:var(--amber);box-shadow:0 0 7px var(--amber);animation:none}
+  /* which card a measurement is on, under its tag. Same wide-only rule the
+     training cells' node line follows: a phone column cannot hold a node
+     alias, and the tag above it still carries the dot. */
+  .erun{font-size:9.5px;color:var(--muted);white-space:nowrap;margin-top:3px;
+    line-height:1.45;font-variant-numeric:tabular-nums}
+  .erun.stl{color:var(--amber)}
+  .tag{font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);
+    background:var(--panel2);white-space:nowrap}
+  .tag.done{color:var(--green);border-color:rgba(55,211,153,.4)}
+  .tag.old{color:#63a888;border-color:rgba(55,211,153,.25)}
+  .tag.partial{color:var(--amber);border-color:rgba(255,194,75,.4)}
+  .tag.wait{color:#7f8fb3;border-color:rgba(127,143,179,.35)}
+  .tag.todo{color:#3a4a6a}
+  .lgnd{grid-column:1/-1;color:var(--muted);font-size:11.5px;line-height:1.7;
+    padding:4px 8px}
+  .part{padding:11px 16px 3px;font-size:13px;font-weight:700;color:var(--accent);
+    letter-spacing:.4px;border-top:1px solid var(--line);margin-top:6px}
+  .part:first-of-type{border-top:none;margin-top:0}
+  th.grp{color:var(--txt);font-weight:600;border-bottom:none;padding-bottom:2px;
+    font-size:11px;letter-spacing:.4px}
+  a.paper{color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--muted)}
+  a.paper:hover{color:var(--accent);border-color:var(--accent)}
+  /* result modals: clicking a cell or an observable column opens its plots */
+  .clk{cursor:pointer}
+  td.clk:hover{background:rgba(91,140,255,.07)}
+  th.clk{text-decoration:underline dotted;text-underline-offset:3px}
+  th.clk:hover,.sec.clk:hover{color:var(--accent)}
+  #modal{position:fixed;inset:0;display:none;z-index:50;background:rgba(4,7,14,.66);backdrop-filter:blur(3px)}
+  #modal .box{position:absolute;inset:3% 5%;overflow:auto;background:var(--panel);
+    border:1px solid var(--line);border-radius:16px;padding:0 0 22px}
+  #modal .mhead{position:sticky;top:0;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--panel2);z-index:2}
+  #modal .mhead h3{margin:0;font-size:15px;white-space:nowrap}
+  #modal .mhead .sub{color:var(--muted);font-size:12px;flex:1;min-width:220px}
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:14px;padding:14px 18px 4px}
+  .chartbox{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 12px 8px}
+  .chartbox h4{margin:0 0 4px 8px;font-size:13.5px;color:var(--txt);font-weight:600}
+  .chartbox svg{width:100%;height:auto;display:block}
+  .lg{display:flex;flex-wrap:wrap;gap:4px 14px;padding:4px 8px 4px;font-size:12px;color:var(--muted)}
+  .lg span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .lg .sw{width:16px;height:0;border-top:2px solid}
+  /* filter chips: the one selection mechanism for models and runs */
+  .selbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:12px 18px 0}
+  .chipbtn{cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;
+    padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--muted);user-select:none;white-space:nowrap}
+  .chipbtn i{width:9px;height:9px;border-radius:50%;background:#3a4a6a;flex-shrink:0}
+  .chipbtn.on{color:var(--txt);border-color:#3d4f7c}
+  .chipbtn:not(.on){opacity:.55}
+  .chipbtn:not(.on) i{background:#3a4a6a !important}
+  .chipbtn.ghost{border-style:dashed}
+  .vr{width:1px;height:18px;background:var(--line);margin:0 4px}
+  .qi{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;
+    border-radius:50%;border:1px solid var(--line);color:var(--muted);font-size:11px;
+    cursor:help;flex-shrink:0;background:var(--panel2)}
+  .qi:hover{color:var(--accent);border-color:var(--accent)}
+  #modal .tw{margin:6px 18px 10px}
+  #modal table{width:auto;min-width:55%}
+  #modal td,#modal th{font-variant-numeric:tabular-nums;white-space:nowrap;
+    font-size:12.5px;padding:8px 12px}
+  #modal .note{color:var(--muted);font-size:11px;padding:0 18px 8px;line-height:1.5}
+  #modal tr.refrow td{color:var(--txt);font-style:italic}
+  #modal tbody tr.clk:hover td{background:rgba(91,140,255,.07)}
+  .mdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+  #tip{position:fixed;display:none;z-index:60;background:#0c1322;border:1px solid var(--line);
+    border-radius:8px;padding:7px 11px;font-size:12.5px;line-height:1.5;pointer-events:none;
+    color:var(--txt);box-shadow:0 4px 16px rgba(0,0,0,.5);
+    max-width:min(360px,86vw);white-space:pre-line}
+  #tip b{font-variant-numeric:tabular-nums}
+  /* chart controls: paper badge, per-chart buttons, the modal toolbar */
+  .badge{font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(91,140,255,.13);
+    border:1px solid rgba(91,140,255,.45);color:#9db8ff;font-weight:600;white-space:nowrap;flex-shrink:0}
+  .cbar{display:flex;align-items:center;gap:7px;margin:0 4px 4px 8px}
+  .cbar h4{margin:0;font-size:13.5px;color:var(--txt);font-weight:600;flex:1;min-width:0}
+  .cbtn{cursor:pointer;font-size:10.5px;padding:2px 8px;border-radius:6px;border:1px solid var(--line);
+    background:var(--panel);color:var(--muted);user-select:none;white-space:nowrap;flex-shrink:0}
+  .cbtn:hover{border-color:var(--accent)}
+  .cbtn.on{color:var(--accent);border-color:var(--accent)}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 18px 0;
+    color:var(--muted);font-size:12px}
+  .toolbar input[type=range]{width:120px;accent-color:var(--accent);margin:0 2px}
+  .toolbar b{font-variant-numeric:tabular-nums;min-width:30px}
+  .toolbar .tgrp{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  th.sortable{cursor:pointer;user-select:none}
+  th.sortable:hover{color:var(--accent)}
+  /* ---------------------------------------------------------- phones ---- */
+  /* The GPU tab already stacks; the experiment tab is the wide one. Its
+     tables stay tables (a grid reads as a grid), shed the node column into
+     the modal, and scroll sideways behind a pinned model name if they still
+     do not fit. */
+  @media(max-width:760px){
+    header{padding:12px 14px;gap:10px}
+    .logo{font-size:17px}
+    .meta{font-size:11px;text-align:left}
+    .chips{padding:12px 12px 2px;gap:8px}
+    .chip{min-width:calc(50% - 6px);padding:11px 13px}
+    .chip .v{font-size:20px}
+    .grid{padding:12px 12px 28px;gap:12px}
+    .banner{margin:12px 12px 0}
+    .card h2{padding:11px 13px;font-size:14px;flex-wrap:wrap}
+    .card h2 .host{order:3;flex:1 1 100%;margin-left:18px;white-space:normal}
+    .card h2 .cnt{order:2}
+    .part{padding:10px 13px 2px}
+    .sec{padding:9px 13px 3px}
+    th,td{padding:6px 4px}
+    thead th{font-size:10px;white-space:nowrap}
+    td.model{font-size:10px}
+    /* the model name stays put while the rates and seeds scroll past it */
+    td.model,thead th:first-child{position:sticky;left:0;z-index:1;
+      background:var(--panel);box-shadow:1px 0 0 rgba(38,48,74,.7)}
+    .mcell{min-width:0}
+    /* epochs over age instead of beside it: six of these columns only fit a
+       phone stacked */
+    .mcell .mtxt{flex-direction:column;align-items:flex-start;font-size:10.5px;
+      margin-bottom:2px;line-height:1.25}
+    .mcell .mtxt span{margin-left:0;font-size:9.5px}
+    .wo{display:none}          /* node name, "(winner)", "stalled": tap the cell */
+    .gpu,.disk{padding-left:13px;padding-right:13px}
+    .qi{width:21px;height:21px;font-size:12px}
+    #modal .box{inset:0;border-radius:0}
+    #modal .mhead{padding:12px 13px;gap:10px}
+    #modal .mhead h3{white-space:normal;font-size:14px}
+    #modal .mhead .sub{min-width:0;flex:1 1 100%}
+    #modal .tw{margin:6px 12px 10px}
+    #modal td,#modal th{padding:7px 9px;font-size:11.5px}
+    #modal .note{padding:0 13px 8px}
+    .selbar{padding:10px 12px 0}
+    .charts{padding:12px 12px 4px;gap:12px}
+    .chartbox{padding:10px 8px 6px}
+    .chartbox h4{font-size:12.5px;margin-left:4px}
+    /* controls stay tappable: bigger hit targets, tighter chrome */
+    .toolbar{padding:8px 12px 0;gap:6px}
+    .toolbar input[type=range]{width:100px;height:22px}
+    .cbar{margin:0 2px 4px 4px;gap:5px;flex-wrap:wrap}
+    .cbar h4{flex:1 1 100%}
+    .cbtn{padding:4px 10px;font-size:10.5px}
+    .badge{font-size:9px;padding:2px 6px}
+  }
+  @media(max-width:520px){.bars{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><span class="dot" id="hdot"></span>uMLIP bench</div>
+  <div class="tabs">
+    <button class="btn on" id="t-exp" onclick="tab('exp')">Experiments</button>
+    <button class="btn" id="t-gpu" onclick="tab('gpu')">GPU</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="meta" id="meta">connecting…</div>
+  <button class="btn" onclick="load()">↻ Refresh</button>
+  <span class="qi" title="Training: n/N epochs done, against the budget that cell owes (40, or 10 for a rate probe) · amber = stalled 6+ h.&#10;Evaluation: ✓ done · n/N partial · — not started. A measurement in flight shows its node and card under its tag with how long since it last moved · amber = stalled 2+ h.&#10;&#10;Click a training cell, an evaluation cell, or an observable column header to open its plots and tables.&#10;&#10;One visual rule everywhere: COLOUR is the model, DASH is the run kind (zero-shot dotted, learning rates dotted/solid/dashed, finetune solid), SEEDS are either folded into a mean ± σ band or drawn with fading opacity (seed0 opaque). The dashed ink-coloured series is always the measurement.&#10;&#10;In a plot view: chips select models and runs; clicking a line, bar or table row isolates it (click again to restore); the toolbar smooths curves and folds seeds; 📄 marks a plot the source paper itself reports, the rest are auxiliary views; column headers sort tables.">?</span>
+</header>
+<div class="banner" id="banner"></div>
+<div class="chips" id="chips"></div>
+<div class="grid wide" id="exp"></div>
+<div class="grid" id="gpu" style="display:none"></div>
+<footer id="footer"></footer>
+<div id="modal"><div class="box" id="mbox"></div></div>
+<div id="tip"></div>
+<script>
+// Replaced by publish_pages.sh on deploy; the placeholder means "served by
+// dashboard.py, ask the collector directly".
+const RAW_BASE='https://raw.githubusercontent.com/kiyoung98/umlip-dash/data';
+const STATIC_MODE=RAW_BASE.indexOf('__')<0;
+const REFRESH_MS=STATIC_MODE?60000:15000;
+const srcUrl=()=>STATIC_MODE?RAW_BASE+'/state.json?t='+Date.now():'/api/state';
+let cur='exp', last=null, failCount=0;
+const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+// The rate columns lived here until 2026-08-29. The campaign stopped
+// searching a rate and declares one per cell instead
+// (infra/orchestrator/rates.py), so a training table is seeds alone; the
+// declared rate reaches the page as the gate label on an unstarted seed
+// (select.selection_status), which is where a reader now asks what a cell
+// trains at.
+
+function tab(t){cur=t;
+  for(const x of ['exp','gpu']){
+    document.getElementById(x).style.display=(x===t)?'':'none';
+    document.getElementById('t-'+x).classList.toggle('on',x===t);}
+  render();
+}
+function uColor(p){ if(p>=85)return'var(--red)'; if(p>=50)return'var(--amber)'; if(p>=10)return'var(--green)'; return'#3a4a6a'; }
+function tColor(t){ if(t>=80)return'var(--red)'; if(t>=65)return'var(--amber)'; return'var(--green)'; }
+function chip(k,v){return `<div class="chip"><div class="k">${k}</div><div class="v">${v}</div></div>`;}
+function bar(label,val,max,txt,color){
+  const pct=max?Math.min(100,val/max*100):0;
+  return `<div class="bar"><div class="lbl"><span>${label}</span><b>${txt}</b></div>
+    <div class="track"><div class="fill" style="width:${pct}%;background:${color}"></div></div></div>`;
+}
+function showBanner(m){const b=document.getElementById('banner');b.style.display='block';b.textContent=m;}
+function hideBanner(){document.getElementById('banner').style.display='none';}
+// Faults that "running" hides. The page drew a measurement as RUNNING beside
+// a coverage of 0/N for three days in August 2026 and both were true: the
+// joint arm's results were being deleted on arrival because no reader could
+// resolve their tag, and the elastic cells were restarting from their first
+// temperature every time they were re-dispatched. Neither is visible in any
+// per-cell number -- the cell really is leased, and its coverage really is
+// what it says -- so the join between them belongs here, at the top, in the
+// one element the page already uses to say something is wrong.
+function campaignFaults(s){
+  const o=(s&&s.orchestrator)||{}, msg=[];
+  // The collector's own errors come FIRST, because every number below them
+  // is suspect while one is present. `expected-grid` is the one that hurts:
+  // the grid is cached for an hour and the last good one is kept on failure,
+  // so a payload that stopped parsing on 2026-08-29 left the page drawing a
+  // retired lr-search grid for six hours, with no sign that anything was
+  // wrong. A stale grid now says so where the reader is already looking.
+  const errs=(s&&s.errors)||[];
+  if(errs.length) msg.push(`collector: ${errs.join(' · ')} — the numbers `
+    +`below are the last ones that could be built, not the current ones`);
+  const bad=o.eval_uncountable||[];
+  if(bad.length){
+    msg.push(`${bad.length} training arm(s) whose evaluations can NEVER be `
+      +`counted — every measurement they run is discarded on arrival: `
+      +bad.map(b=>`${b.benchmark}/${b.method} (${b.why})`).join('; '));
+  }
+  const stuck=o.eval_stalled||[];
+  if(stuck.length){
+    const top=stuck.slice(0,4).map(d=>
+      `${d.job} ${d.have}/${d.need} for ${d.stuck_h}h`
+      +(d.node?` on ${d.node}`:'')).join('; ');
+    msg.push(`${stuck.length} evaluation(s) leased repeatedly with no new `
+      +`result — ${top}${stuck.length>4?'; …':''}`);
+  }
+  return msg.join(' · ');
+}
+
+// ------------------------------------------------------------------- gpu --
+// A card running a MEASUREMENT says so in its job label -- the id's phase,
+// which the label used to drop, so an evaluation read exactly like a
+// training cell of the same method and model. Nothing else: a training cell
+// on a card carries no progress badge either, and the experiment tab is
+// where either kind of work says how it is doing.
+function gpuRow(g){
+  return `<div class="gpu">
+    <div class="top">
+      <span class="idx">${g.i}</span>
+      <span class="name">${esc((g.name||'GPU').replace('NVIDIA ',''))}</span>
+      <span class="pill">
+        ${g.temp!=null?`<b style="color:${tColor(g.temp)}">${Math.round(g.temp)}°C</b>`:''}
+        ${g.power!=null?`<span>${Math.round(g.power)}${g.plimit?'/'+Math.round(g.plimit):''}W</span>`:''}
+      </span>
+    </div>
+    ${g.job?`<div class="job" title="${esc(g.job)}">${esc(g.job)}</div>`:''}
+    <div class="bars">
+      ${bar('Utilization',g.util,100,Math.round(g.util)+'%',uColor(g.util))}
+      ${bar('Memory',g.mem,g.mem_total,(g.mem/1024).toFixed(1)+' / '+Math.round(g.mem_total/1024)+' GB',uColor(g.mem/g.mem_total*100))}
+    </div>
+  </div>`;
+}
+function diskBar(d){
+  if(!d||!d.total) return '';
+  const pct=d.used/d.total*100;
+  const gb=x=>x>=1024**4?(x/1024**4).toFixed(2)+' TB':(x/1024**3).toFixed(1)+' GB';
+  const color=pct>=90?'var(--red)':pct>=75?'var(--amber)':'var(--accent)';
+  return `<div class="disk">
+    <div class="lbl"><span>Disk</span><b>${pct.toFixed(0)}% full · ${gb(d.used)} / ${gb(d.total)}</b></div>
+    <div class="dbar"><div class="seg" style="width:${pct.toFixed(2)}%;background:${color}"></div></div>
+  </div>`;
+}
+function nodeCard(name,n,ts){
+  const gpus=n.gpus||[];
+  const busy=gpus.filter(g=>g.util>0||g.mem>500).length;
+  return `<div class="card"><h2><span class="sdot${busy?' busy':''}"></span>${esc(name)}
+    <span class="host">${busy}/${gpus.length} in use</span>
+    <span class="cnt">${gpus.length} GPU${gpus.length!=1?'s':''}</span></h2>
+    ${gpus.map(gpuRow).join('')||'<div class="empty" style="padding:16px">No GPUs reported</div>'}
+    ${diskBar(n.disk)}</div>`;
+}
+function renderGpu(s){
+  const nodes=Object.entries(s.nodes).sort((a,b)=>a[0].localeCompare(b[0]));
+  document.getElementById('gpu').innerHTML=
+    nodes.map(([k,v])=>nodeCard(k,v,s.ts)).join('')
+    ||'<div class="empty" style="padding:30px">no GPU nodes detected</div>';
+}
+function gpuChips(s){
+  const nodes=Object.values(s.nodes);
+  const gpus=nodes.flatMap(n=>n.gpus||[]);
+  const used=gpus.filter(g=>g.util>0||g.mem>500).length;
+  const avg=gpus.length?gpus.reduce((a,g)=>a+g.util,0)/gpus.length:0;
+  const mu=gpus.reduce((a,g)=>a+g.mem,0), mt=gpus.reduce((a,g)=>a+g.mem_total,0);
+  const kw=gpus.reduce((a,g)=>a+(g.power||0),0)/1000;
+  return chip('Servers',`${nodes.length}<small> online</small>`)+
+    chip('GPUs in use',`${used}<small>/${gpus.length}</small>`)+
+    chip('Avg utilization',`${Math.round(avg)}<small>%</small>`)+
+    chip('VRAM allocated',`${Math.round(mu/1024)}<small>/${Math.round(mt/1024)} GB</small>`)+
+    chip('Power draw',`${kw.toFixed(1)}<small> kW</small>`);
+}
+
+// ------------------------------------------------------------ experiments --
+function age(h){return h==null?'':(h<1.5?Math.round(h*60)+'m':h.toFixed(1)+'h');}
+function mcell(c,gate){
+  if(!c||c.status==='todo')
+    return `<div class="mcell st-todo"><div class="mtxt"><b>${gate?'⏳':'—'}</b>${gate?`<span>${esc(gate)}</span>`:''}</div>
+      <div class="track"><div class="fill" style="width:0"></div></div></div>`;
+  // epochs=null: show "running" without inventing a fraction
+  const unknown=c.epochs==null;
+  // the CELL's budget, not the campaign's: a rate probe owes ten epochs, and
+  // drawing it against forty said "0/40" over a table headed "short run(s)",
+  // which reads as a forty-something nobody has started.
+  const bud=c.budget||40;
+  const pct=unknown?0:Math.min(100,c.epochs/bud*100);
+  const color={done:'var(--green)',running:'var(--accent)',stale:'var(--amber)'}[c.status];
+  const txt=c.status==='done'?`✓ ${bud}`:unknown?'running':`${c.epochs}/${bud}`;
+  // .wo = wide-only. A phone column is ~46 px: the node name cannot fit and
+  // is one tap away in the panel, but the age is what says "is this moving".
+  const tail=`${c.age_h!=null?age(c.age_h):''}${c.status==='stale'?'<span class="wo"> stalled</span>':''}`;
+  const node=`${c.status==='running'?'<span class="rdot"></span>':''}${esc(c.node||'')}`;
+  const sub=c.status==='done'?`<span class="wo">${esc(c.node||'')}</span>`:
+    `<span class="wo">${node}${node&&tail?' ·':''}</span><span>${tail}</span>`;
+  return `<div class="mcell st-${c.status}"><div class="mtxt"><b>${txt}</b><span>${sub}</span></div>
+    <div class="track"><div class="fill" style="width:${pct}%;background:${color}"></div></div></div>`;
+}
+// Where a measurement is and whether it is moving, in the SAME three
+// things a training cell shows (mcell): the node, how long since it last
+// moved, and the word "stalled" in amber. `runs` is one entry per replicate
+// in flight, because a row is one (model, observable, variant) and three
+// seeds can be measured on three machines at once.
+//
+// A training cell's `age_h` is the time since its record was last written.
+// This is the same quantity read off the only thing an evaluation writes
+// before its npz -- the log on its node -- and it is drawn the same way,
+// bare. A run whose log cannot be read shows the node and no age, exactly
+// as a training cell with no record does.
+function stalled(e){return ((e&&e.runs)||[]).some(r=>r.state==='stalled');}
+function evalRuns(e){
+  const rs=(e&&e.runs)||[];
+  if(!rs.length) return '';
+  return '<div class="wo">'+rs.map(r=>{
+    const st=r.state==='stalled';
+    const where=(r.node||'')+(r.gpu!=null?' g'+r.gpu:'');
+    const tail=r.quiet_s==null?'':age(r.quiet_s/3600);
+    return `<div class="erun${st?' stl':''}"><span class="rdot${st?' stl':''}"></span>`+
+      `${r.seed!=null?'s'+r.seed+' ':''}${esc(where)}${tail?' · '+tail:''}`+
+      `${st?' stalled':''}</div>`;}).join('')+'</div>';
+}
+function evalTag(e){
+  if(!e) return '<span class="tag todo">—</span>';
+  const run=e.running?`<span class="rdot${stalled(e)?' stl':''}"></span> `:'';
+  if(e.status==='done') return `<span class="tag done">✓</span>`;
+  if(e.seeds_ready!=null){
+    // finetuned: the reported number is a mean over all seed replicates, so
+    // the tag counts SEEDS — k/N replicates measured, or, before any eval
+    // has landed, how many replicates have even finished training (each of
+    // those is one measurement the scheduler owes right now).
+    const tip=(e.per_seed||[]).map((h,i)=>`s${i}: ${h}/${e.need}`).join('  ');
+    if(e.seeds_done||e.status==='partial'||e.running)
+      return `<span class="tag partial" title="${tip}">${run}${e.seeds_done}/${e.n_seeds}s</span>`;
+    if(e.seeds_ready)
+      return `<span class="tag wait" title="${e.seeds_ready}/${e.n_seeds} seeds trained; eval owed">⏳ ${e.seeds_ready}/${e.n_seeds}</span>`;
+    return '<span class="tag todo">—</span>';
+  }
+  if(e.status==='partial'||e.running) return `<span class="tag partial">${run}${e.have}/${e.need}</span>`;
+  return '<span class="tag todo">—</span>';
+}
+function benchCard(b,models){
+  const done=b.cells.filter(c=>c.status==='done').length;
+  const run=b.cells.filter(c=>c.status==='running').length;
+  const ref=b.paper
+    ?(b.paper_url?`<a class="paper" href="${b.paper_url}" target="_blank" rel="noopener">${esc(b.paper)}</a>`:esc(b.paper))
+    :'diversity system — no source paper';
+  let h=`<div class="card"><h2><span class="sdot${run?' busy':''}"></span>${esc(b.display)}
+    <span class="host">${ref}</span>
+    <span class="cnt">${done}/${b.cells.length} done${run?' · '+run+' running':''}</span></h2>`;
+  h+=`<div class="part">Training</div>`;
+  for(const m of b.methods){
+    const cells=b.cells.filter(c=>c.method===m);
+    const tkey=`train:${b.system}:${m}`;
+    h+=`<div class="sec clk" onclick="openPanel('${tkey}')" title="compare all models">finetune · ${esc(m)}</div>
+      <div class="tw"><table><thead><tr><th>model</th>
+      <th>seed0</th><th>seed1</th><th>seed2</th></tr></thead><tbody>`;
+    // a model-narrowed method (method_models) draws only its own rows
+    const MM=(b.method_models&&b.method_models[m])||models;
+    for(const model of MM){
+      h+=`<tr><td class="model clk" onclick="openPanel('${tkey}',{model:'${model}'})">${esc(model)}</td>`;
+      for(const sd of ['seed0','seed1','seed2']){
+        const c=cells.find(x=>x.model===model&&x.label===sd&&x.phase==='finetune');
+        const gate=(!c||c.status==='todo')?SEL[`${b.key}/${m}/${model}`]:null;
+        h+=`<td class="clk" onclick="openPanel('${tkey}',{model:'${model}',variant:'${sd}'})">${mcell(c,gate)}</td>`;}
+      h+=`</tr>`;
+    }
+    h+=`</tbody></table></div>`;
+    // The short runs a cell with no declared rate owes. They are counted in
+    // the chips above like any other cell because the scheduler owes them
+    // like any other cell, so they are drawn too -- a counted-but-undrawn
+    // cell is how the page came to say 46/306 over a table of 153 rows.
+    // The table is per method and appears only while something is undecided:
+    // declaring the rate in rates.py deletes the row, not a person.
+    const pr=cells.filter(c=>c.phase==='probe');
+    if(pr.length){
+      const labs=[...new Set(pr.map(c=>c.label))];
+      // how short, in the header, because "short" is the whole reason these
+      // cells are cheap and the reader should not have to hover a cell to
+      // learn that the run below is ten epochs and not forty
+      const bs=[...new Set(pr.map(c=>c.budget||40))];
+      const ep=bs.length===1?` of ${bs[0]} epochs`:'';
+      h+=`<div class="sec">rate probe · ${esc(m)}<span class="wo"> (${pr.length} short run(s)${ep}; no rate declared yet)</span></div>
+        <div class="tw"><table><thead><tr><th>model</th>${labs.map(l=>`<th>${esc(l.replace(/^lr/,'lr ').replace('_dft',' · dft '))}</th>`).join('')}</tr></thead><tbody>`;
+      for(const model of [...new Set(pr.map(c=>c.model))]){
+        h+=`<tr><td class="model">${esc(model)}</td>`;
+        for(const l of labs){
+          const c=pr.find(x=>x.model===model&&x.label===l);
+          h+=`<td>${c?mcell(c):'<span style="color:var(--muted)">·</span>'}</td>`;}
+        h+=`</tr>`;
+      }
+      h+=`</tbody></table></div>`;
+    }
+  }
+  const OBS_LABEL={free_energy:'ΔG anchor',melting:'melting'};
+  const VAR_LABEL={zs:'zero-shot',exp:'finetuned · exp_only',
+                   fused:'finetuned · fused',difttc:'finetuned · difttc'};
+  h+=`<div class="part">Evaluation</div>`;
+  for(const v of (b.variants||['zs'])){
+    // an ft variant of a model-narrowed method lists only its own models
+    // ('exp' is exp_only's display alias; other variants share their
+    // method's name)
+    const vMeth=(v==='exp')?'exp_only':v;
+    const vMM=(v!=='zs'&&b.method_models&&b.method_models[vMeth])||models;
+    h+=`<div class="sec">${VAR_LABEL[v]||v}</div><div class="tw"><table><thead>`;
+    h+=`<tr><th>model</th>${b.observables.map(o=>`<th class="clk" title="all models, all variants" onclick="openPanel('eval:${b.system}:${o}')">${esc(OBS_LABEL[o]||o)}</th>`).join('')}</tr></thead><tbody>`;
+    for(const model of vMM){
+      h+=`<tr><td class="model">${esc(model)}</td>`;
+      for(const o of b.observables){
+        const e=b.evals.find(x=>x.model===model&&x.obs===o&&x.variant===v);
+        h+=`<td class="clk" onclick="openPanel('eval:${b.system}:${o}',{model:'${model}',variant:'${v}'})">${evalTag(e)}${evalRuns(e)}</td>`;}
+      h+=`</tr>`;
+    }
+    h+=`</tbody></table></div>`;
+  }
+  h+=`</div>`;
+  return h;
+}
+let SEL={};
+function renderExp(s){
+  SEL=(s.orchestrator&&s.orchestrator.selection)||{};
+  if(!s.grid){document.getElementById('exp').innerHTML=
+    '<div class="empty" style="padding:30px">first experiment scan in progress… (up to 2 min)</div>';return;}
+  document.getElementById('exp').innerHTML=
+    (s.grid.benchmarks||[]).map(b=>benchCard(b,s.grid.models)).join('');
+}
+function expChips(s){
+  if(!s.grid) return '';
+  const cells=(s.grid.benchmarks||[]).flatMap(x=>x.cells);
+  const evals=(s.grid.benchmarks||[]).flatMap(x=>x.evals);
+  const n=t=>cells.filter(c=>c.status===t).length;
+  const edone=evals.filter(e=>e.status==='done').length;
+  // one per RUNNING measurement, not per row: a row can have three
+  // replicates in flight. The parallel of 'Training now'.
+  const eruns=evals.flatMap(e=>e.runs||[]).length;
+  return chip('Cells trained',`${n('done')}<small>/${cells.length}</small>`)+
+    chip('Training now',`${n('running')}`)+
+    chip('Stalled / not started',`${n('stale')}<small> / ${n('todo')}</small>`)+
+    chip('Measuring now',`${eruns}`)+
+    chip('Evals done',`${edone}<small>/${evals.length}</small>`);
+}
+
+// ------------------------------------------------------------------ plots --
+// Per-cell result plots, derived by gen_plotdata.py on the collector under
+// the same provenance rules as the paper. The style contract mirrors
+// paper/gen_figures.py: colour identifies the model; every measured series
+// is dashed in the page ink (the paper's black-dashed rule on a dark theme);
+// zero-shot dotted, finetuned solid; rates keep the paper's dash styles.
+const INK='#e6ecff',SURF='#1b2336';
+// viewBox geometry. Charts scale down to their grid column (>=380px), so a
+// 13px viewBox glyph never renders below ~9px; every label stays readable.
+const CW=560,CH=300,ML=64,MR=16,MT=14,MB=48;
+const FT=13,FL=13.5;   // tick and axis-title font sizes in viewBox units
+let plots=null,plotsAt=0,plotsPromise=null;
+let MPANEL=null,MKEY=null,MCHARTS=[],HOVER=[];
+let SELM=new Set(),SELT=new Set(),FAC={M:[],T:[],VT:{},hasSeeds:false};
+// wandb-style view state. SMOOTH and BAND persist across panels and visits
+// (they are how the reader likes to look, not what they are looking at);
+// CSTATE (per-chart log / bar flips) and TSORT reset with each panel.
+let SMOOTH=Math.min(.95,Math.max(0,+(localStorage.smooth||0)||0));
+let BAND=localStorage.band!=='0';
+let CSTATE={},TSORT=null;
+const attr=s=>esc(s).replace(/"/g,'&quot;');
+const plotsUrl=()=>STATIC_MODE?RAW_BASE+'/plots.json?t='+Date.now():'/api/plots';
+async function ensurePlots(){
+  if(plots&&Date.now()-plotsAt<5*60*1000)return plots;
+  if(!plotsPromise)plotsPromise=fetch(plotsUrl(),{cache:'no-store'})
+    .then(r=>{if(!r.ok)throw 0;return r.json()})
+    .then(j=>{plots=j;plotsAt=Date.now();return j})
+    .catch(()=>plots).finally(()=>{plotsPromise=null});
+  return plotsPromise;
+}
+function facetsOf(p){
+  const M=[],T=[],VT={},fams={};
+  const add=o=>{
+    if(o.model&&!M.includes(o.model))M.push(o.model);
+    if(o.tag){if(!T.includes(o.tag))T.push(o.tag);if(o.variant)VT[o.tag]=o.variant;}
+    if(o.seed!=null){const k=(o.model||'')+'|'+(o.family||'');fams[k]=(fams[k]||0)+1;}
+  };
+  (p.charts||[]).forEach(c=>(c.series||c.bars||[]).forEach(add));
+  ((p.table||{}).rows||[]).forEach(add);
+  return {M,T,VT,hasSeeds:Object.values(fams).some(n=>n>1)};
+}
+async function openPanel(key,focus){
+  const j=await ensurePlots();
+  MKEY=key;
+  MPANEL=(j&&j.panels&&j.panels[key])||null;
+  MCHARTS=(MPANEL&&MPANEL.charts)||[];
+  CSTATE={};TSORT=null;
+  FAC=MPANEL?facetsOf(MPANEL):{M:[],T:[],VT:{},hasSeeds:false};
+  SELM=new Set(FAC.M);SELT=new Set(FAC.T);
+  // reported results by default; candidate-rate chips start off
+  (MPANEL&&MPANEL.default_off||[]).forEach(t=>SELT.delete(t));
+  if(SELT.size===0)SELT=new Set(FAC.T);
+  if(focus&&focus.model&&FAC.M.includes(focus.model))SELM=new Set([focus.model]);
+  if(focus&&focus.variant){
+    const t=FAC.T.filter(x=>FAC.VT[x]===focus.variant);
+    if(t.length)SELT=new Set(t);
+  }
+  renderModal();
+  document.getElementById('modal').style.display='block';
+  document.body.style.overflow='hidden';
+}
+function visible(o){
+  return (!o.model||SELM.has(o.model))&&(!o.tag||SELT.has(o.tag));
+}
+function renderModal(){
+  const box=document.getElementById('mbox');
+  if(!MPANEL){
+    box.innerHTML=mhead(MKEY.replace(/:/g,' · '),'')+
+      `<div class="note" style="padding:26px 18px">No results here yet.</div>`;
+    return;
+  }
+  const st=box.scrollTop;
+  // an empty declared panel says WHY in the body, not only behind the ?: a
+  // blank modal reads as the page failing to draw, which it is not
+  const why=MPANEL.empty?`<div class="note" style="padding:26px 18px;font-size:13px${MPANEL.error?';color:#ffd0d0':''}">${esc(MPANEL.sub||'No results here yet.')}</div>`:'';
+  box.innerHTML=mhead(MPANEL.title,helpText())+chipsHtml()+toolbarHtml()+why
+    +(MCHARTS.length?`<div class="charts">${MCHARTS.map((c,i)=>chartBox(c,i)).join('')}</div>`:'')
+    +tableHtml(MPANEL.table);
+  MCHARTS.forEach((c,i)=>attachHover(i));
+  box.scrollTop=st;
+}
+// ---- the modal toolbar: smoothing + seed aggregation, wandb-style ----
+function toolbarHtml(){
+  const smoothable=MCHARTS.some(c=>c.kind!=='bar'&&!c.xticks
+    &&(c.series||[]).some(s=>!s.ref&&s.x&&s.x.length>=8));
+  if(!smoothable&&!FAC.hasSeeds)return '';
+  let h='<div class="toolbar">';
+  if(FAC.hasSeeds)h+=`<span class="chipbtn${BAND?' on':''}" onclick="toggleBand()">
+      <i style="background:${BAND?'var(--accent)':'#3a4a6a'}"></i>average seeds</span>
+    <span class="qi" title="ON: repeat runs (seeds) of the same model and setting are averaged into one curve, with a shaded ±1σ band showing their spread (bar charts: one bar per setting, with a min–max whisker).&#10;OFF: every seed drawn separately — seed0 opaque, later seeds progressively fainter. Colour is always the model and dash the run kind, in both views.">?</span>`;
+  if(smoothable){
+    if(FAC.hasSeeds)h+='<span class="vr"></span>';
+    h+=`<span class="tgrp">smoothing
+      <input type="range" min="0" max="95" value="${Math.round(SMOOTH*100)}"
+        oninput="this.nextElementSibling.textContent=(+this.value?(this.value/100).toFixed(2):'off')"
+        onchange="setSmooth(this.value)"><b>${SMOOTH?SMOOTH.toFixed(2):'off'}</b>
+      <span class="qi" title="Debiased exponential moving average, the wandb rule. The raw curve stays underneath at low opacity so smoothing can never hide a spike. Applies to curves with ≥8 points; never to the dashed measurement.">?</span></span>`;
+  }
+  return h+'</div>';
+}
+function toggleBand(){BAND=!BAND;localStorage.band=BAND?'1':'0';renderModal();}
+function setSmooth(v){SMOOTH=Math.min(.95,v/100);localStorage.smooth=SMOOTH;renderModal();}
+function cState(ci,k){
+  const st=CSTATE[ci]=CSTATE[ci]||{};
+  if(k==='log')st.log=!(st.log!=null?st.log:!!MCHARTS[ci].logy);
+  else st[k]=!st[k];
+  renderModal();
+}
+// debiased EMA: m_t/(1-w^t), so the first points are not dragged toward 0
+function ema(y,w){let m=0,d=0;return y.map(v=>{m=m*w+(1-w)*v;d=d*w+(1-w);return m/d});}
+function interp(s,x){
+  const xs=s.x,ys=s.y;
+  if(!xs.length||x<xs[0]||x>xs[xs.length-1])return null;
+  let i=xs.indexOf(x);if(i>=0)return ys[i];
+  for(i=1;i<xs.length;i++)if(xs[i]>=x)break;
+  const t=(x-xs[i-1])/(xs[i]-xs[i-1]);
+  return ys[i-1]+t*(ys[i]-ys[i-1]);
+}
+// seed replicates -> one mean series with a ±1σ band. Grouped on the seed
+// and family FIELDS the generator emits, never by parsing a label; runs
+// without a seed (zero-shot, lr candidates, the measurement) pass through.
+function aggSeed(list){
+  const groups={},out=[];
+  for(const s of list){
+    if(s.seed==null||s.ref){out.push(s);continue}
+    const k=(s.model||'')+'|'+(s.family||s.tag)+'|'+(s.dash||'solid');
+    (groups[k]=groups[k]||[]).push(s);
+  }
+  for(const k in groups){
+    const g=groups[k];
+    if(g.length<2){out.push(...g);continue}
+    const xs=[...new Set(g.flatMap(s=>s.x))].sort((a,b)=>a-b);
+    const pts=xs.map(x=>{
+      const vs=g.map(s=>interp(s,x)).filter(v=>v!=null);
+      if(!vs.length)return null;
+      const m=vs.reduce((a,b)=>a+b,0)/vs.length;
+      const sd=vs.length>1?Math.sqrt(vs.reduce((a,v)=>a+(v-m)*(v-m),0)/vs.length):0;
+      return {x,m,lo:m-sd,hi:m+sd};
+    }).filter(Boolean);
+    const s0=g[0];
+    out.push({label:`${s0.label.split(' · ')[0]} · ${s0.family||''} mean±σ (${g.length} seeds)`,
+      x:pts.map(p=>p.x),y:pts.map(p=>p.m),band:pts.map(p=>[p.lo,p.hi]),
+      model:s0.model,dash:s0.dash,marker:s0.marker,wide:true,tags:g.map(s=>s.tag)});
+  }
+  return out;
+}
+function aggSeedBars(bars){
+  const groups={},out=[];
+  for(const b of bars){
+    if(b.seed==null){out.push(b);continue}
+    const k=(b.model||'')+'|'+(b.family||b.tag);
+    (groups[k]=groups[k]||[]).push(b);
+  }
+  for(const k in groups){
+    const g=groups[k];
+    if(g.length<2){out.push(...g);continue}
+    const y=[],w=[];
+    for(let i=0;i<g[0].y.length;i++){
+      const vs=g.map(b=>b.y[i]).filter(v=>v!=null);
+      if(!vs.length){y.push(null);w.push(null);continue}
+      y.push(vs.reduce((a,b)=>a+b,0)/vs.length);
+      w.push([Math.min(...vs),Math.max(...vs)]);
+    }
+    out.push({...g[0],label:`${g[0].label.split(' · ')[0]} · ${g[0].family||''} mean (${g.length} seeds)`,
+      y,whisker:w,tags:g.map(b=>b.tag),tag:undefined,seed:undefined});
+  }
+  return out;
+}
+// line -> one bar per run at its tail-5 mean: the quantity the lr selection
+// actually ranks (umlip/analysis/lr_select.py), so the bar view cannot say
+// anything the epoch curve's criterion refuses.
+function tailBars(c){
+  const bars=c.series.filter(s=>!s.ref&&s.x&&s.x.length).map(s=>{
+    const t=s.y.slice(-5),v=t.reduce((a,b)=>a+b,0)/t.length;
+    return {label:s.label,model:s.model,tag:s.tag,seed:s.seed,family:s.family,
+      variant:s.variant,alpha:s.alpha,y:[v]};
+  });
+  return {kind:'bar',title:c.title,ylabel:(c.ylabel||'')+' — tail-5 mean',
+    groups:['tail-5 mean'],bars};
+}
+function helpText(){
+  let q=MPANEL.sub||'';
+  if(MPANEL.table&&MPANEL.table.note)q+=(q?'\n\n':'')+MPANEL.table.note;
+  return q;
+}
+function mhead(t,q){return `<div class="mhead"><h3>${esc(t)}</h3>
+  ${q?`<span class="qi" title="${attr(q)}">?</span>`:''}<div class="spacer"></div>
+  <button class="btn" onclick="closeModal()">✕</button></div>`;}
+function closeModal(){document.getElementById('modal').style.display='none';
+  document.getElementById('tip').style.display='none';document.body.style.overflow='';}
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
+window.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+// ---- selection: chips, and solo-on-click from any line, bar or row ----
+function chipsHtml(){
+  const{M,T}=FAC;
+  if(M.length<2&&T.length<2)return '';
+  let h='<div class="selbar">';
+  if(M.length>1)h+=M.map(m=>`<span class="chipbtn${SELM.has(m)?' on':''}" onclick="selToggle('m',this.dataset.v)" data-v="${attr(m)}">
+      <i style="background:${(plots.colors||{})[m]||'#8a96b4'}"></i>${esc((plots.labels||{})[m]||m)}</span>`).join('');
+  if(M.length>1&&T.length>1)h+='<span class="vr"></span>';
+  if(T.length>1)h+=T.map(t=>`<span class="chipbtn${SELT.has(t)?' on':''}" onclick="selToggle('t',this.dataset.v)" data-v="${attr(t)}">${esc(t)}</span>`).join('');
+  h+=`<span class="chipbtn ghost" onclick="selAll()">all</span></div>`;
+  return h;
+}
+function selToggle(kind,v){
+  const s=kind==='m'?SELM:SELT;
+  s.has(v)?s.delete(v):s.add(v);
+  renderModal();
+}
+function selAll(){SELM=new Set(FAC.M);SELT=new Set(FAC.T);renderModal();}
+function isSolo(o){
+  const mOk=!o.model||(SELM.size===1&&SELM.has(o.model));
+  const tags=o.tags||(o.tag?[o.tag]:null);
+  const tOk=!tags||(SELT.size===tags.length&&tags.every(t=>SELT.has(t)));
+  return mOk&&tOk&&!!(o.model||tags);
+}
+function solo(o){
+  if(!o||(!o.model&&!o.tag&&!o.tags))return;
+  if(isSolo(o)){selAll();return}
+  if(o.model)SELM=new Set([o.model]);
+  if(o.tags)SELT=new Set(o.tags);      // an aggregated series is its seeds
+  else if(o.tag)SELT=new Set([o.tag]);
+  renderModal();
+}
+const sColor=s=>s.ref?INK:(s.color||(plots&&plots.colors||{})[s.model]||'#8a96b4');
+function sDashArr(s){
+  const d=s.ref?(s.dash==='none'?'none':'dash'):(s.dash||'solid');
+  return {solid:'',dash:'8 5',dot:'2 5',none:''}[d]||'';
+}
+function ticksOf(lo,hi,n){
+  if(!(hi>lo))hi=lo+1;
+  const span=hi-lo,s0=Math.pow(10,Math.floor(Math.log10(span/n)));
+  const e=span/n/s0,step=s0*(e>=7.5?10:e>=3.5?5:e>=1.5?2:1);
+  const t=[];for(let v=Math.ceil(lo/step)*step;v<=hi+step*1e-9;v+=step)t.push(+v.toFixed(10));
+  return t;
+}
+function fmtN(v){
+  const a=Math.abs(v);
+  if(a>=1e5||(a>0&&a<1e-3))return v.toExponential(0).replace('e-','e−');
+  if(a>=100)return v.toFixed(0);
+  if(a>=1)return String(+v.toFixed(2));
+  return String(+v.toFixed(3));
+}
+// markers >= 8px with a surface ring, so a point stays legible where lines
+// cross; ring colour = the chart surface, per the mark spec
+function markerPath(kind,x,y,col){
+  const r=4,ring=`stroke="${SURF}" stroke-width="1.6" fill="${col}"`;
+  if(kind==='square')return `<rect x="${x-r}" y="${y-r}" width="${2*r}" height="${2*r}" ${ring}/>`;
+  if(kind==='triangle')return `<path d="M${x} ${y-r-1} L${x+r+1} ${y+r} L${x-r-1} ${y+r} Z" ${ring}/>`;
+  if(kind==='diamond')return `<path d="M${x} ${y-r-1.5} L${x+r+1.5} ${y} L${x} ${y+r+1.5} L${x-r-1.5} ${y} Z" ${ring}/>`;
+  if(kind==='down')return `<path d="M${x} ${y+r+1} L${x+r+1} ${y-r} L${x-r-1} ${y-r} Z" ${ring}/>`;
+  if(kind==='pentagon')return `<path d="M${x} ${y-r-1.4} L${x+r+1.3} ${y-0.4} L${x+r-1.3} ${y+r+0.6} L${x-r+1.3} ${y+r+0.6} L${x-r-1.3} ${y-0.4} Z" ${ring}/>`;
+  if(kind==='star')return `<path d="${[0,1,2,3,4,5,6,7,8,9].map(i=>{
+    const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*0.46:r+1.4;
+    return `${i?'L':'M'}${(x+rr*Math.cos(a)).toFixed(2)} ${(y+rr*Math.sin(a)).toFixed(2)}`;}).join(' ')} Z" ${ring}/>`;
+  if(kind==='x')return `<path d="M${x-r} ${y-r} L${x+r} ${y+r} M${x-r} ${y+r} L${x+r} ${y-r}" stroke="${col}" stroke-width="2" fill="none"/>`;
+  if(kind==='tick')return `<path d="M${x-5} ${y} L${x+5} ${y}" stroke="${col}" stroke-width="2.2" fill="none"/>`;
+  return `<circle cx="${x}" cy="${y}" r="${r}" ${ring}/>`;
+}
+function axisFrame(){
+  return `<line x1="${ML}" y1="${CH-MB}" x2="${CW-MR}" y2="${CH-MB}" stroke="#3a4a6a" stroke-width="1"/>
+          <line x1="${ML}" y1="${MT}" x2="${ML}" y2="${CH-MB}" stroke="#3a4a6a" stroke-width="1"/>`;
+}
+function lineChart(c,ci,st){
+  st=st||CSTATE[ci]||{};
+  // measurement drawn last, on top of every model curve (the paper's zorder)
+  let vis=c.series.filter(s=>s.x&&s.x.length&&visible(s))
+    .slice().sort((a,b)=>(a.ref?1:0)-(b.ref?1:0));
+  HOVER[ci]={type:'line',pts:[]};
+  if(!vis.length)return `<svg viewBox="0 0 ${CW} ${CH}"><text x="${CW/2}" y="${CH/2}" fill="#8a96b4" font-size="${FL}" text-anchor="middle">nothing selected</text></svg>`;
+  // seed aggregation, then smoothing, both AFTER the visibility filter so
+  // the chips keep selecting raw runs; neither applies to a phonon-style
+  // chart (explicit xticks), whose x is a path, not a shared axis
+  if(BAND&&!c.xticks)vis=aggSeed(vis);
+  if(SMOOTH>0&&!c.xticks){
+    const w=SMOOTH,sm=[];
+    for(const s of vis){
+      if(s.ref||s.x.length<8){sm.push(s);continue}
+      sm.push({...s,alpha:(s.alpha!=null?s.alpha:1)*0.16,marker:null,
+               band:null,_ghost:true});
+      sm.push({...s,y:ema(s.y,w),
+               band:s.band&&(()=>{const lo=ema(s.band.map(b=>b[0]),w),
+                 hi=ema(s.band.map(b=>b[1]),w);
+                 return lo.map((v,i)=>[v,hi[i]])})()});
+    }
+    vis=sm;
+  }
+  const ly=st.log!=null?st.log:!!c.logy,ty=v=>ly?Math.log10(v):v;
+  let x0=1/0,x1=-1/0,y0=1/0,y1=-1/0;
+  const see=v=>{if(v==null||(ly&&v<=0))return;const t=ty(v);if(t<y0)y0=t;if(t>y1)y1=t};
+  for(const s of vis)for(let k=0;k<s.x.length;k++){
+    const y=s.y[k];if(y==null||(ly&&y<=0))continue;
+    if(s.x[k]<x0)x0=s.x[k];if(s.x[k]>x1)x1=s.x[k];
+    see(y);
+    if(s.band&&s.band[k]){see(s.band[k][0]);see(s.band[k][1])}
+  }
+  if(!(x1>x0)){x0-=1;x1+=1}
+  if(!(y1>=y0)){y0=0;y1=1}
+  if(c.hline!=null&&!ly){y0=Math.min(y0,c.hline);y1=Math.max(y1,c.hline)}
+  const pad=(y1-y0||1)*0.06;y0-=pad;y1+=pad;
+  const X=v=>ML+(v-x0)/(x1-x0)*(CW-ML-MR);
+  const Y=v=>CH-MB-(ty(v)-y0)/(y1-y0)*(CH-MT-MB);
+  const Yt=v=>CH-MB-(v-y0)/(y1-y0)*(CH-MT-MB);   // transformed input
+  let h=`<svg viewBox="0 0 ${CW} ${CH}" preserveAspectRatio="xMidYMid meet">`;
+  // y grid + labels: solid hairlines one step off the surface, recessive
+  for(const t of ticksOf(y0,y1,5)){
+    if(t<y0||t>y1)continue;
+    h+=`<line x1="${ML}" y1="${Yt(t)}" x2="${CW-MR}" y2="${Yt(t)}" stroke="#26304a" stroke-width="1"/>
+        <text x="${ML-8}" y="${Yt(t)+4}" fill="#8a96b4" font-size="${FT}" text-anchor="end">${fmtN(ly?Math.pow(10,t):t)}</text>`;
+  }
+  // x ticks: explicit (phonon symmetry points) or computed
+  if(c.xticks){
+    (c.vlines||[]).forEach(v=>{h+=`<line x1="${X(v)}" y1="${MT}" x2="${X(v)}" y2="${CH-MB}" stroke="#26304a" stroke-width="1"/>`});
+    c.xticks.at.forEach((v,k)=>{h+=`<text x="${X(v)}" y="${CH-MB+19}" fill="#8a96b4" font-size="${FT}" text-anchor="middle">${esc(c.xticks.labels[k]||'')}</text>`});
+  }else{
+    for(const t of ticksOf(x0,x1,6)){
+      if(t<x0-1e-9||t>x1+1e-9)continue;
+      h+=`<text x="${X(t)}" y="${CH-MB+19}" fill="#8a96b4" font-size="${FT}" text-anchor="middle">${fmtN(t)}</text>`;
+    }
+  }
+  if(c.hline!=null&&!ly)h+=`<line x1="${ML}" y1="${Y(c.hline)}" x2="${CW-MR}" y2="${Y(c.hline)}" stroke="#4a5878" stroke-width="1"/>`;
+  h+=axisFrame();
+  for(const s of vis){
+    const col=sColor(s);
+    let op=(s.alpha!=null?s.alpha:1);
+    // individual-seed view: seed0 opaque, replicates progressively fainter
+    if(!BAND&&s.seed!=null&&!s._ghost)op*=[1,.72,.5][s.seed]!=null?[1,.72,.5][s.seed]:.45;
+    const w=s.wide?3:2,da=sDashArr(s);
+    // ±1σ band under its own mean line, clipped to the floor on a log axis
+    if(s.band){
+      let up='',dn='';
+      for(let k=0;k<s.x.length;k++){
+        const b=s.band[k];if(!b)continue;
+        const px=X(s.x[k]).toFixed(1);
+        const hi=(ly&&b[1]<=0)?null:Y(ly?Math.max(b[1],1e-300):b[1]);
+        const lo=(ly&&b[0]<=0)?CH-MB:Y(ly?Math.max(b[0],1e-300):b[0]);
+        if(hi==null)continue;
+        up+=(up?'L':'M')+px+' '+hi.toFixed(1);
+        dn=('L'+px+' '+Math.min(lo,CH-MB).toFixed(1))+dn;
+      }
+      if(up)h+=`<path d="${up}${dn.replace(/^L/,'L')} Z" fill="${col}" opacity="${0.14*op}" stroke="none"/>`;
+    }
+    let d='',pen=false;
+    const drawLine=s.dash!=='none';
+    for(let k=0;k<s.x.length;k++){
+      const yv=s.y[k];
+      if(yv==null||(ly&&yv<=0)){pen=false;continue}
+      const px=X(s.x[k]),py=Y(yv);
+      d+=(pen?'L':'M')+px.toFixed(1)+' '+py.toFixed(1);pen=true;
+      if(!s._ghost)HOVER[ci].pts.push({px,py,label:s.label,x:s.x[k],y:yv,model:s.model,tag:s.tag,tags:s.tags});
+    }
+    h+=`<g opacity="${op}">`;
+    if(drawLine&&d)h+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"${da?` stroke-dasharray="${da}"`:''}/>`;
+    if(s.marker&&s.x.length<=60){
+      for(let k=0;k<s.x.length;k++){
+        const yv=s.y[k];if(yv==null||(ly&&yv<=0))continue;
+        h+=markerPath(s.marker,X(s.x[k]),Y(yv),col);
+      }
+    }
+    h+='</g>';
+  }
+  if(c.xlabel)h+=`<text x="${(ML+CW-MR)/2}" y="${CH-6}" fill="#8a96b4" font-size="${FL}" text-anchor="middle">${esc(c.xlabel)}</text>`;
+  if(c.ylabel)h+=`<text fill="#8a96b4" font-size="${FL}" text-anchor="middle" transform="translate(16 ${(MT+CH-MB)/2}) rotate(-90)">${esc(c.ylabel)}</text>`;
+  return h+'</svg>';
+}
+function barChart(c,ci){
+  let bars=c.bars.filter(visible);
+  if(BAND)bars=aggSeedBars(bars);
+  HOVER[ci]={type:'bar',rects:[]};
+  const G=c.groups.length;
+  // extent covers negatives (signed-error charts): the baseline is Y(0)
+  let lo=0,hi=0;
+  const see=v=>{if(v==null)return;if(v<lo)lo=v;if(v>hi)hi=v};
+  bars.forEach(b=>{b.y.forEach(see);(b.whisker||[]).forEach(w=>{if(w){see(w[0]);see(w[1])}})});
+  if(c.refband)c.refband.y.forEach(mm=>{see(mm[0]);see(mm[1])});
+  if(!(hi>lo)){hi=lo+1}
+  const pad=(hi-lo)*0.08;hi+=hi>0?pad:0;lo-=lo<0?pad:0;
+  const Y=v=>CH-MB-((v-lo)/(hi-lo))*(CH-MT-MB);
+  const Y0=Y(0);
+  // bars: <=24 thick with a 2px surface gap, rounded at the data end only
+  const gw=(CW-ML-MR)/G,n=Math.max(bars.length,1),bw=Math.min(gw*0.82/n,26);
+  const barPath=(x,w,yD,down)=>{           // yD = the data end, Y0 the base
+    const r=Math.min(4,w/2,Math.abs(Y0-yD)),x2=x+w;
+    if(!down)return `M${x} ${Y0} L${x} ${(yD+r).toFixed(1)} Q${x} ${yD.toFixed(1)} ${(x+r).toFixed(1)} ${yD.toFixed(1)} L${(x2-r).toFixed(1)} ${yD.toFixed(1)} Q${x2} ${yD.toFixed(1)} ${x2} ${(yD+r).toFixed(1)} L${x2} ${Y0} Z`;
+    return `M${x} ${Y0} L${x} ${(yD-r).toFixed(1)} Q${x} ${yD.toFixed(1)} ${(x+r).toFixed(1)} ${yD.toFixed(1)} L${(x2-r).toFixed(1)} ${yD.toFixed(1)} Q${x2} ${yD.toFixed(1)} ${x2} ${(yD-r).toFixed(1)} L${x2} ${Y0} Z`;
+  };
+  let h=`<svg viewBox="0 0 ${CW} ${CH}" preserveAspectRatio="xMidYMid meet">`;
+  for(const t of ticksOf(lo,hi,5)){
+    if(t<lo||t>hi)continue;
+    h+=`<line x1="${ML}" y1="${Y(t)}" x2="${CW-MR}" y2="${Y(t)}" stroke="#26304a" stroke-width="1"/>
+        <text x="${ML-8}" y="${Y(t)+4}" fill="#8a96b4" font-size="${FT}" text-anchor="end">${fmtN(t)}</text>`;
+  }
+  h+=axisFrame();
+  if(lo<0)h+=`<line x1="${ML}" y1="${Y0}" x2="${CW-MR}" y2="${Y0}" stroke="#4a5878" stroke-width="1.4"/>`;
+  for(let g=0;g<G;g++){
+    const cx=ML+g*gw+gw/2;
+    h+=`<text x="${cx}" y="${CH-MB+20}" fill="#e6ecff" font-size="${FT}" font-weight="600" text-anchor="middle">${esc(c.groups[g])}</text>`;
+    bars.forEach((b,j)=>{
+      const v=b.y[g];if(v==null)return;
+      const x=+(cx+(j-n/2)*bw).toFixed(1),col=b.color||sColor(b);
+      const op=b.alpha!=null?b.alpha:1;
+      h+=`<path d="${barPath(x,bw-2,Y(v),v<0)}" fill="${col}" opacity="${op}"/>`;
+      const w=b.whisker&&b.whisker[g];    // seed min–max over the mean bar
+      if(w)h+=`<g stroke="${INK}" stroke-width="1.5" opacity="0.85">
+        <line x1="${x+(bw-2)/2}" y1="${Y(w[0])}" x2="${x+(bw-2)/2}" y2="${Y(w[1])}"/>
+        <line x1="${x+(bw-2)/2-3.5}" y1="${Y(w[0])}" x2="${x+(bw-2)/2+3.5}" y2="${Y(w[0])}"/>
+        <line x1="${x+(bw-2)/2-3.5}" y1="${Y(w[1])}" x2="${x+(bw-2)/2+3.5}" y2="${Y(w[1])}"/></g>`;
+      HOVER[ci].rects.push({x,w:bw-2,y0:Math.min(Y(v),Y0),y1:Math.max(Y(v),Y0),
+        label:b.label,val:v,whisker:w,group:c.groups[g],model:b.model,tag:b.tag,tags:b.tags});
+    });
+    if(c.refband){
+      const[rl,rh]=c.refband.y[g],x0=cx-gw*0.45,x1=cx+gw*0.45;
+      h+=`<rect x="${x0}" y="${Y(rh)}" width="${x1-x0}" height="${Y(rl)-Y(rh)}" fill="${INK}" opacity="0.07"/>
+          <line x1="${x0}" y1="${Y(rl)}" x2="${x1}" y2="${Y(rl)}" stroke="${INK}" stroke-width="2" stroke-dasharray="8 5"/>
+          <line x1="${x0}" y1="${Y(rh)}" x2="${x1}" y2="${Y(rh)}" stroke="${INK}" stroke-width="2" stroke-dasharray="8 5"/>`;
+    }
+  }
+  if(c.ylabel)h+=`<text fill="#8a96b4" font-size="${FL}" text-anchor="middle" transform="translate(16 ${(MT+CH-MB)/2}) rotate(-90)">${esc(c.ylabel)}</text>`;
+  return h+'</svg>';
+}
+// legend shows only what the chips cannot: the fixed reference series
+function staticLg(c){
+  const seen=new Set();let h='';
+  for(const s of (c.series||c.bars||[])){
+    if(s.model||!s.label||seen.has(s.label))continue;
+    seen.add(s.label);
+    const style=s.ref&&s.dash!=='none'?'dashed':'solid';
+    h+=`<span><i class="sw" style="border-top:2px ${style} ${s.ref?INK:(s.color||'#8a96b4')}"></i>${esc(s.label)}</span>`;
+  }
+  if(c.refband)h+=`<span><i class="sw" style="border-top:2px dashed ${INK}"></i>${esc(c.refband.label||'reference')}</span>`;
+  return h?`<div class="lg">${h}</div>`:'';
+}
+function chartBox(c,ci){return `<div class="chartbox" data-ci="${ci}">${chartInner(c,ci)}</div>`;}
+// per-chart header: the title, a "paper" badge when the source paper shows
+// this plot (everything untagged is this campaign's auxiliary view), a
+// curve/bars flip where the generator allows one, a log toggle, and a ? for
+// anything that needs more words than a title should carry
+function chartCtl(c,ci){
+  const st=CSTATE[ci]||{};
+  let h='';
+  if(c.paper)h+=`<span class="badge" title="This plot appears in the source paper${c.paper===true?'':' ('+attr(String(c.paper))+')'}; untagged charts are auxiliary views this campaign adds.">📄 ${c.paper===true?'paper':'paper · '+esc(String(c.paper))}</span>`;
+  if(c.switch==='tail')h+=`<span class="cbtn${st.bar?' on':''}" onclick="cState(${ci},'bar')" title="Flip between the per-epoch curve and one bar per run at its final value (mean of the last 5 epochs — the quantity the learning-rate selection ranks).">${st.bar?'∿ curves':'▮ final bars'}</span>`;
+  if(c.kind!=='bar'&&!st.bar)h+=`<span class="cbtn${(st.log!=null?st.log:!!c.logy)?' on':''}" onclick="cState(${ci},'log')" title="log / linear y axis">log</span>`;
+  if(c.help)h+=`<span class="qi" title="${attr(c.help)}">?</span>`;
+  return h;
+}
+function chartInner(c,ci){
+  const st=CSTATE[ci]||{};
+  const cc=(st.bar&&c.switch==='tail')?tailBars(c):c;
+  return `<div class="cbar"><h4>${esc(c.title||'')}</h4>${chartCtl(c,ci)}</div>`
+    +(cc.kind==='bar'?barChart(cc,ci):lineChart(cc,ci,st))+staticLg(c);
+}
+function cellNum(r,k){
+  const v=parseFloat(String(r.cells[k]||'').replace(/[^-+0-9.eE]/g,''));
+  return isNaN(v)?null:v;
+}
+function tableHtml(t){
+  if(!t)return '';
+  const arrow=k=>TSORT&&TSORT.c===k?(TSORT.d>0?' ↑':' ↓'):'';
+  let h=`<div class="tw"><table><thead><tr>${t.cols.map((x,k)=>
+    `<th class="sortable" onclick="sortBy(${k})" title="sort">${esc(x)}${arrow(k)}</th>`).join('')}</tr></thead><tbody>`;
+  // reference rows stay pinned on top in file order; model rows sort
+  const refs=[],data=[];
+  t.rows.forEach((r,i)=>{(r.model?data:refs).push([i,r])});
+  if(TSORT){
+    const{c,d}=TSORT;
+    data.sort((a,b)=>{
+      const va=cellNum(a[1],c),vb=cellNum(b[1],c);
+      if(va!=null&&vb!=null)return (va-vb)*d;
+      if(va!=null)return -1; if(vb!=null)return 1;   // "-" sinks
+      return String(a[1].cells[c]).localeCompare(String(b[1].cells[c]))*d;
+    });
+  }
+  let shown=0;
+  for(const[i,r]of refs.concat(data)){
+    if(r.model&&!visible(r))continue;
+    shown++;
+    const cls=[r.model?'clk':'refrow'].join(' ');
+    h+=`<tr class="${cls}"${r.model?` onclick="rowSolo(${i})"`:''}>`;
+    r.cells.forEach((cell,k)=>{
+      const dot=k===0&&r.model?`<span class="mdot" style="background:${(plots&&plots.colors||{})[r.model]||'#8a96b4'}"></span>`:'';
+      h+=`<td>${dot}${esc(cell)}</td>`;
+    });
+    h+='</tr>';
+  }
+  h+='</tbody></table></div>';
+  return shown?h:'';
+}
+function sortBy(c){TSORT=(TSORT&&TSORT.c===c)?(TSORT.d<0?null:{c,d:-1}):{c,d:1};renderModal();}
+function rowSolo(i){solo((MPANEL.table||{}).rows[i]||null);}
+function nearestItem(ci,e){
+  const el=document.querySelector(`.chartbox[data-ci="${ci}"] svg`);
+  const hv=HOVER[ci];
+  if(!el||!hv)return null;
+  const r=el.getBoundingClientRect();
+  const vx=(e.clientX-r.left)/r.width*CW,vy=(e.clientY-r.top)/r.height*CH;
+  if(hv.type==='bar'){
+    for(const b of hv.rects)if(vx>=b.x&&vx<=b.x+b.w&&vy>=b.y0-8&&vy<=b.y1)return b;
+    return null;
+  }
+  let best=null,bd=24*24;
+  for(const p of hv.pts){const dx=p.px-vx,dy=p.py-vy,d=dx*dx+dy*dy;if(d<bd){bd=d;best=p}}
+  return best;
+}
+// One tooltip, placed inside the viewport -- on a phone a raw clientX+14
+// puts half of it off the right edge.
+function showTip(html,x,y){
+  const tip=document.getElementById('tip');
+  tip.innerHTML=html;tip.style.display='block';
+  tip.style.left='0px';tip.style.top='0px';
+  const r=tip.getBoundingClientRect();
+  tip.style.left=Math.max(8,Math.min(x,window.innerWidth-r.width-8))+'px';
+  tip.style.top=Math.max(8,Math.min(y,window.innerHeight-r.height-8))+'px';
+}
+function hideTip(){document.getElementById('tip').style.display='none';}
+// Every explanation on this page lives in a title="", which a touch device
+// never shows. Tapping a ? renders the same text in the tooltip.
+document.addEventListener('click',e=>{
+  const q=e.target.closest&&e.target.closest('.qi');
+  if(!q){hideTip();return}
+  const r=q.getBoundingClientRect();
+  showTip(esc(q.getAttribute('title')||''),r.left-260,r.bottom+8);
+  e.stopPropagation();
+},true);
+function attachHover(ci){
+  const el=document.querySelector(`.chartbox[data-ci="${ci}"] svg`);
+  if(!el)return;
+  el.style.cursor='pointer';
+  el.addEventListener('mousemove',e=>{
+    const best=nearestItem(ci,e);
+    if(best)showTip(best.group!=null
+        ?`${esc(best.label)}<br>${esc(best.group)} · <b>${fmtN(best.val)}</b>`
+          +(best.whisker?`<br>seed range <b>${fmtN(best.whisker[0])}</b> – <b>${fmtN(best.whisker[1])}</b>`:'')
+        :`${esc(best.label)}<br><b>${fmtN(best.x)}</b>, <b>${fmtN(best.y)}</b>`,
+      e.clientX+14,e.clientY+10);
+    else hideTip();
+  });
+  // click a line or bar to isolate that model+run; click it again to restore
+  el.addEventListener('click',e=>{
+    const best=nearestItem(ci,e);
+    if(best&&(best.model||best.tag)){hideTip();solo(best)}
+  });
+  el.addEventListener('mouseleave',hideTip);
+}
+
+// ----------------------------------------------------------------- driver --
+function render(){
+  if(!last) return;
+  document.getElementById('chips').innerHTML=cur==='gpu'?gpuChips(last):expChips(last);
+  renderExp(last);renderGpu(last);
+}
+async function load(){
+  try{
+    const r=await fetch(srcUrl(),{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    last=await r.json();
+    failCount=0;
+    const faults=campaignFaults(last);
+    if(faults) showBanner(faults); else hideBanner();
+    document.getElementById('hdot').style.background='var(--green)';
+    const dataAge=Math.max(0,Math.round((Date.now()/1000-last.ts)/60));
+    document.getElementById('meta').textContent=
+      `updated ${new Date(last.ts*1000).toLocaleTimeString('en-GB')}`
+      +(STATIC_MODE&&dataAge>0?` (${dataAge}m ago)`:'')
+      +` · auto-refresh ${REFRESH_MS/1000}s`;
+    document.getElementById('footer').textContent=
+      `svr6 collector · nodes auto-detected from ssh config`
+      +(last.scanned?` · run dirs scanned: ${last.scanned.join(', ')}`:'');
+    render();
+  }catch(e){
+    failCount++;
+    document.getElementById('meta').textContent='reconnecting…';
+    document.getElementById('hdot').style.background='var(--red)';
+    if(failCount>=3) showBanner('Live data source is unreachable — the svr6 collector or its publisher may be down. Retrying automatically.');
+  }
+}
+load();
+setInterval(load,REFRESH_MS);
+</script>
+</body>
+</html>
