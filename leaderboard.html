@@ -1,0 +1,308 @@
+<!doctype html>
+<!-- The exp-only leaderboard page. Self-contained like index.html: no
+     framework, no external script, dual-mode via https://raw.githubusercontent.com/kiyoung98/umlip-dash/data (served by
+     dashboard.py it polls /api/leaderboard; published to Pages it polls the
+     data branch). Model colours arrive in the JSON document, never here.
+     Identity is never colour-alone: every coloured mark sits beside the
+     model's name (the Okabe-Ito pair #999933/#E69F00 fails the CVD check,
+     and the colours are entity-bound across the paper and the dashboard, so
+     the compensation is direct labels everywhere rather than a repaint).
+     Two views, one encoding: fine-tuned is a solid bar/number, pretrained
+     the same bar at reduced opacity beside it -- never a second mark shape.
+     Provenance (basis commit, seeds) lives in one muted footer line. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ExFiT-Bench Leaderboard</title>
+<style>
+:root{
+  --bg:#0b0f1a; --panel:#141a2b; --panel2:#1b2336; --line:#26304a;
+  --txt:#e6ecff; --muted:#8a96b4; --accent:#5b8cff; --gold:#ffc857;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,
+  'Noto Sans KR',Arial,sans-serif}
+a{color:var(--accent);text-decoration:none}
+header{max-width:1060px;margin:0 auto;padding:40px 24px 20px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header h1{font-size:24px;margin:0;font-weight:700;letter-spacing:-.01em}
+header h1 span{color:var(--muted);font-weight:400}
+.seg{margin-left:auto;display:flex;background:var(--panel);
+  border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{border:0;background:none;color:var(--muted);font:inherit;
+  font-size:13px;font-weight:600;padding:6px 16px;border-radius:8px;
+  cursor:pointer}
+.seg button.on{background:var(--panel2);color:var(--txt)}
+main{max-width:1060px;margin:0 auto;padding:0 24px 8px}
+.card{background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:8px 20px 14px;margin-bottom:18px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{color:var(--muted);font-weight:600;font-size:12px;text-align:right;
+  padding:14px 12px 10px;border-bottom:1px solid var(--line);
+  white-space:nowrap;line-height:1.3}
+th small{display:block;font-weight:400;font-size:11px}
+th:nth-child(1),th:nth-child(2){text-align:left}
+td{padding:13px 12px;border-bottom:1px solid rgba(38,48,74,.5);
+  text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+td:nth-child(1),td:nth-child(2){text-align:left}
+tr:last-child td{border-bottom:none}
+tr.row:hover td{background:rgba(91,140,255,.05)}
+.rk{color:var(--muted);width:36px}
+tr.row:first-child .rk,tr.row:first-child .model b{color:var(--gold)}
+.model{display:flex;align-items:center;gap:9px}
+.dot{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+.model b{font-weight:600;font-family:ui-monospace,Menlo,monospace;
+  font-size:13.5px}
+.tag{font-size:10px;font-weight:600;color:var(--muted);
+  border:1px solid var(--line);border-radius:5px;padding:1px 6px;
+  letter-spacing:.02em}
+.sd{color:var(--muted);font-size:11.5px}
+.empty{color:var(--muted)}
+.mr{font-weight:700}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.panel h2{font-size:15px;margin:14px 0 2px;font-weight:650}
+.panel .m{color:var(--muted);font-size:12px;margin-bottom:8px}
+.legend{display:flex;gap:18px;align-items:center;color:var(--muted);
+  font-size:12.5px;margin:2px 2px 14px}
+.sw{display:inline-block;width:18px;height:10px;border-radius:3px;
+  background:var(--muted);vertical-align:-1px;margin-right:6px}
+.sw.pre{opacity:.32}
+svg text{font:11.5px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+  Inter,sans-serif;fill:var(--txt)}
+svg .mut{fill:var(--muted)} svg .ax{stroke:var(--line);stroke-width:1}
+#tip{position:fixed;pointer-events:none;background:var(--panel2);
+  border:1px solid var(--line);border-radius:8px;padding:8px 11px;
+  font-size:12px;color:var(--txt);opacity:0;transition:opacity .08s;
+  z-index:20;max-width:280px;white-space:normal;line-height:1.5}
+#tip .t{color:var(--muted)}
+footer{color:var(--muted);font-size:11.5px;max-width:1060px;margin:0 auto;
+  padding:4px 24px 36px}
+#err{display:none;max-width:1060px;margin:14px auto;padding:10px 14px;
+  border:1px solid #ff6b6b;border-radius:8px;color:#ff6b6b;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>ExFiT-Bench <span>Leaderboard</span></h1>
+  <div class="seg" role="tablist">
+    <button id="bt-table" onclick="setView('table')">Table</button>
+    <button id="bt-charts" onclick="setView('charts')">Charts</button>
+  </div>
+</header>
+<div id="err"></div>
+<main>
+  <div id="v-table" class="card"><div class="tw"><table id="board"></table>
+  </div></div>
+  <div id="v-charts">
+    <div class="legend"><span><span class="sw"></span>fine-tuned</span>
+      <span><span class="sw pre"></span>pretrained</span>
+      <span style="margin-left:auto">lower is better</span></div>
+    <div class="grid" id="panels"></div>
+  </div>
+</main>
+<footer id="foot"></footer>
+<div id="tip"></div>
+<script>
+'use strict';
+const RAW_BASE='https://raw.githubusercontent.com/kiyoung98/umlip-dash/data';
+const STATIC_MODE=RAW_BASE.indexOf('__')<0;
+const srcUrl=()=>STATIC_MODE?RAW_BASE+'/leaderboard.json?t='+Date.now()
+                            :'/api/leaderboard';
+const REFRESH_MS=60000;
+const esc=s=>String(s).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let DOC=null;
+let VIEW=location.hash==='#charts'?'charts':'table';
+
+const tip=document.getElementById('tip');
+function showTip(ev,html){tip.innerHTML=html;tip.style.opacity=1;moveTip(ev)}
+function moveTip(ev){
+  const w=tip.offsetWidth,h=tip.offsetHeight;
+  let x=ev.clientX+14,y=ev.clientY+14;
+  if(x+w>innerWidth-8)x=ev.clientX-w-14;
+  if(y+h>innerHeight-8)y=ev.clientY-h-14;
+  tip.style.left=x+'px';tip.style.top=y+'px';
+}
+function hideTip(){tip.style.opacity=0}
+
+function fmt(v,mk){
+  if(v==null)return null;
+  if(mk==='chi')return v.toFixed(2);
+  if(mk==='tline')return v.toFixed(0);
+  return v.toFixed(3);
+}
+function cellTip(r,b){
+  const c=r.cells[b.key],m=b.metric,rows=['<b>'+esc(r.label)+'</b> · '+
+    esc(b.display)];
+  if(c.mean!=null)rows.push('fine-tuned <b>'+fmt(c.mean,m.key)+'</b>'+
+    (c.sd!=null?' <span class="t">± '+fmt(c.sd,m.key)+'</span>':'')+
+    (c.rank?' <span class="t">· rank '+c.rank+'</span>':''));
+  rows.push(c.zs!=null?'pretrained '+fmt(c.zs,m.key)
+                      :'<span class="t">pretrained score pending</span>');
+  rows.push('<span class="t">'+(c.mean!=null?c.n+' seed'+(c.n>1?'s':'')+
+    (c.rate?' · lr '+esc(c.rate):''):'awaiting evaluation')+'</span>');
+  return rows.join('<br>');
+}
+function hook(el,r,b){
+  el.addEventListener('mousemove',ev=>{showTip(ev,cellTip(r,b));moveTip(ev)});
+  el.addEventListener('mouseleave',hideTip);
+}
+function cardTip(r){
+  const c=r.card||{},m=c.method||{};
+  const base=typeof c.base==='string'?c.base
+    :(c.base&&(c.base.label||c.base.name))||'—';
+  const lines=['<b>'+esc(r.label)+'</b> <span class="t">· '+
+    (r.source==='external'
+      ?'community entry'+(r.tier==='weights'?' · weights provided':'')
+      :'this work · verified')+'</span>'];
+  lines.push('<span class="t">base:</span> '+esc(base));
+  if(m.loss)lines.push('<span class="t">loss:</span> '+esc(m.loss));
+  if(m.data)lines.push('<span class="t">data:</span> '+esc(m.data));
+  if(m.regularization)
+    lines.push('<span class="t">regularization:</span> '+
+               esc(m.regularization));
+  return lines.join('<br>');
+}
+
+function buildTable(doc){
+  const t=document.getElementById('board');
+  let h='<tr><th>#</th><th>Model</th>';
+  for(const b of doc.benchmarks)
+    h+='<th>'+esc(b.display)+'<small>'+esc(b.metric.label)+'</small></th>';
+  h+='<th>Mean rank</th></tr>';
+  for(const r of doc.rows){
+    h+='<tr class="row"><td class="rk">'+(r.rank??'—')+'</td>'+
+       '<td data-card="'+esc(r.model)+'"><span class="model">'+
+       '<span class="dot" style="background:'+esc(r.color)+'"></span>'+
+       '<b>'+esc(r.label)+'</b>'+
+       (r.source==='external'?' <span class="tag">community</span>':'')+
+       '</span></td>';
+    for(const b of doc.benchmarks){
+      const c=r.cells[b.key];
+      h+='<td data-b="'+esc(b.key)+'" data-m="'+esc(r.model)+'">'+
+         (c.mean==null?'<span class="empty">—</span>'
+          :fmt(c.mean,b.metric.key)+
+           (c.sd!=null?' <span class="sd">±'+fmt(c.sd,b.metric.key)+
+            '</span>':''))+'</td>';
+    }
+    h+='<td class="mr">'+(r.mean_rank!=null?r.mean_rank.toFixed(2):'—')+
+       '</td></tr>';
+  }
+  t.innerHTML=h;
+  t.querySelectorAll('td[data-b]').forEach(td=>{
+    hook(td,doc.rows.find(x=>x.model===td.dataset.m),
+         doc.benchmarks.find(x=>x.key===td.dataset.b));
+  });
+  t.querySelectorAll('td[data-card]').forEach(td=>{
+    const r=doc.rows.find(x=>x.model===td.dataset.card);
+    td.addEventListener('mousemove',ev=>{showTip(ev,cardTip(r));moveTip(ev)});
+    td.addEventListener('mouseleave',hideTip);
+  });
+}
+
+// One panel per benchmark: paired horizontal bars per model -- fine-tuned
+// solid, pretrained the same hue at low opacity directly beneath it. One
+// encoding for the comparison everywhere; one axis; per-panel scale.
+function barPanel(doc,b){
+  const rows=doc.rows
+    .map(r=>({r,c:r.cells[b.key]}))
+    .filter(x=>x.c.mean!=null||x.c.zs!=null)
+    .sort((x,y)=>(x.c.mean??Infinity)-(y.c.mean??Infinity));
+  const card=document.createElement('div');
+  card.className='card panel';
+  card.innerHTML='<h2>'+esc(b.display)+'</h2>'+
+    '<div class="m" title="'+esc(b.metric.desc)+'">'+esc(b.metric.label)+
+    '</div>';
+  if(!rows.length){
+    card.innerHTML+='<div class="m">no scored checkpoints yet</div>';
+    return card;
+  }
+  const CW=500,ML=92,MR=56,RH=38,MT=4,MB=22,BH=11;
+  const CH=MT+rows.length*RH+MB;
+  const vmax=Math.max(...rows.flatMap(x=>[x.c.mean??0,x.c.zs??0]))*1.05;
+  const X=v=>ML+(CW-ML-MR)*(v/vmax);
+  let s='<svg viewBox="0 0 '+CW+' '+CH+'" style="width:100%;height:auto">';
+  s+='<line class="ax" x1="'+ML+'" y1="'+MT+'" x2="'+ML+'" y2="'+
+     (CH-MB)+'"/>';
+  rows.forEach((x,i)=>{
+    const y=MT+i*RH,cy=y+RH/2;
+    s+='<text x="'+(ML-8)+'" y="'+(cy+4)+'" text-anchor="end">'+
+       esc(x.r.short||x.r.label)+'</text>'+
+       '<g data-i="'+i+'">'+
+       '<rect x="'+ML+'" y="'+(y+4)+'" width="'+(CW-ML)+'" height="'+
+       (RH-8)+'" fill="transparent"/>';
+    if(x.c.mean!=null){
+      const w=Math.max(2,X(x.c.mean)-ML);
+      s+='<rect x="'+ML+'" y="'+(cy-BH-1)+'" width="'+w+'" height="'+BH+
+         '" rx="3" fill="'+esc(x.r.color)+'"/>'+
+         '<text x="'+(ML+w+6)+'" y="'+(cy-3)+'">'+
+         fmt(x.c.mean,b.metric.key)+'</text>';
+    }else{
+      s+='<text class="mut" x="'+(ML+6)+'" y="'+(cy-3)+'">—</text>';
+    }
+    if(x.c.zs!=null){
+      const w=Math.max(2,X(x.c.zs)-ML);
+      s+='<rect x="'+ML+'" y="'+(cy+1)+'" width="'+w+'" height="'+BH+
+         '" rx="3" fill="'+esc(x.r.color)+'" opacity="0.32"/>'+
+         '<text class="mut" x="'+(ML+w+6)+'" y="'+(cy+BH-1)+'">'+
+         fmt(x.c.zs,b.metric.key)+'</text>';
+    }
+    s+='</g>';
+  });
+  s+='<text class="mut" x="'+ML+'" y="'+(CH-6)+'">0</text>'+
+     '<text class="mut" x="'+(CW-MR)+'" y="'+(CH-6)+'" text-anchor="end">'+
+     fmt(vmax,b.metric.key)+'</text></svg>';
+  card.innerHTML+=s;
+  card.querySelectorAll('g[data-i]').forEach(g=>{
+    hook(g,rows[+g.dataset.i].r,b);
+  });
+  return card;
+}
+
+function setView(v){
+  VIEW=v;
+  history.replaceState(null,'',v==='charts'?'#charts':'#');
+  document.getElementById('v-table').style.display=
+    v==='table'?'':'none';
+  document.getElementById('v-charts').style.display=
+    v==='charts'?'':'none';
+  document.getElementById('bt-table').className=v==='table'?'on':'';
+  document.getElementById('bt-charts').className=v==='charts'?'on':'';
+}
+
+function render(doc){
+  DOC=doc;
+  buildTable(doc);
+  const panels=document.getElementById('panels');
+  panels.innerHTML='';
+  for(const b of doc.benchmarks)panels.appendChild(barPanel(doc,b));
+  const bs=doc.basis||{};
+  document.getElementById('foot').textContent=
+    'Fine-tuned on experimental data alone ('+doc.seeds+' seeds per model); '+
+    'every number is derived from provenance-checked runs. Lower is better; '+
+    'models are ranked within each benchmark and ordered by mean rank. '+
+    'Basis '+(bs.commit||'?')+' · '+
+    (bs.generated||'').replace('T',' ').replace('Z',' UTC');
+}
+
+async function tick(){
+  try{
+    const r=await fetch(srcUrl());
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    render(await r.json());
+    document.getElementById('err').style.display='none';
+  }catch(e){
+    const el=document.getElementById('err');
+    el.textContent='leaderboard data unavailable: '+e;
+    el.style.display='block';
+  }
+}
+setView(VIEW);
+tick();setInterval(tick,REFRESH_MS);
+</script>
+</body>
+</html>
